@@ -1,0 +1,86 @@
+{
+  "users": [
+    {
+      "id": "e001",
+      "name": "Alice Tanaka",
+      "role": "employee",
+      "department": "Sales",
+      "manager_id": "m001",
+      "annual_leave_allowance": 20
+    },
+    {
+      "id": "e002",
+      "name": "Bob Suzuki",
+      "role": "employee",
+      "department": "Engineering",
+      "manager_id": "m002",
+      "annual_leave_allowance": 18
+    },
+    {
+      "id": "m001",
+      "name": "Mika Yamada",
+      "role": "manager",
+      "department": "Sales",
+      "manager_id": "a001",
+      "annual_leave_allowance": 22
+    },
+    {
+      "id": "m002",
+      "name": "Ryo Watanabe",
+      "role": "manager",
+      "department": "Engineering",
+      "manager_id": "a001",
+      "annual_leave_allowance": 22
+    },
+    {
+      "id": "a001",
+      "name": "Admin Ito",
+      "role": "admin",
+      "department": "HQ",
+      "manager_id": null,
+      "annual_leave_allowance": 25
+    }
+  ],
+  "leave_types": [
+    "Paid",
+    "Sick",
+    "Half-day",
+    "Special"
+  ],
+  "work_calendar": {
+    "holidays": [
+      "2025-01-01",
+      "2025-02-11",
+      "2025-04-29",
+      "2025-05-03"
+    ]
+  },
+  "approval_routes": [
+    {
+      "department": "Sales",
+      "manager_id": "m001"
+    },
+    {
+      "department": "Engineering",
+      "manager_id": "m002"
+    }
+  ],
+  "leave_requests": [
+    {
+      "id": "lv-20251116091007617439",
+      "user_id": "e001",
+      "employee_name": "Alice Tanaka",
+      "department": "Sales",
+      "leave_type": "Paid",
+      "start_date": "2025-11-17",
+      "end_date": "2025-11-17",
+      "days": 1,
+      "reason": "疲れた",
+      "status": "pending",
+      "approver_comment": "",
+      "approved_by": "",
+      "created_at": "2025-11-16T09:10:07.617584"
+    }
+  ],
+  "attendance_corrections": []
+}

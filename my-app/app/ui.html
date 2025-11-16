@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>休暇・勤怠申請デモ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #2563eb;
+      --danger: #ef4444;
+      --success: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px 12px 48px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    h1 { margin: 0; font-size: 1.8rem; text-align: center; }
+    section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    section h2 { margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; background: #e2e8f0; color: var(--muted); }
+    form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; color: var(--muted); }
+    input, select, textarea {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 1rem;
+      width: 100%;
+    }
+    textarea { resize: vertical; min-height: 70px; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button {
+      border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+      background: var(--accent); color: #fff; font-weight: 700;
+      transition: transform 0.1s ease, opacity 0.2s ease;
+    }
+    button.secondary { background: #e2e8f0; color: var(--text); }
+    button.danger { background: var(--danger); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--border); text-align: left; padding: 8px; }
+    th { background: #f1f5f9; }
+    .status { padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; }
+    .pending { background: #fef3c7; color: #92400e; }
+    .approved { background: #dcfce7; color: #166534; }
+    .rejected { background: #fee2e2; color: #991b1b; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .hint { background: #f8fafc; border: 1px dashed var(--border); padding: 10px; border-radius: 8px; font-size: 0.95rem; }
+    .error { color: var(--danger); font-weight: 700; min-height: 1.2em; }
+    .success { color: var(--success); font-weight: 700; min-height: 1.2em; }
+    code { background: #0f172a; color: #e2e8f0; padding: 4px 6px; border-radius: 6px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>休暇・勤怠申請デモ</h1>
+    <p class="muted">ローカルおよびGitHub公開URLで同一のUI・同一APIを利用するシングルページ構成です。バックエンド(main.py)とフロントエンド(ui.html)は常に同じリポジトリで更新してください。</p>
+  </header>
+
+  <section id="login-section">
+    <h2>ログイン（簡易選択）</h2>
+    <form id="login-form">
+      <label>ユーザー
+        <select id="user-select" required></select>
+      </label>
+      <div class="actions">
+        <button type="submit">ログイン</button>
+      </div>
+    </form>
+    <div id="login-message" class="success"></div>
+  </section>
+
+  <section id="summary-section" style="display:none;">
+    <h2>サマリー</h2>
+    <div class="grid">
+      <div class="hint">
+        <strong>現在のユーザー:</strong> <span id="current-user"></span><br>
+        <strong>ロール:</strong> <span id="current-role"></span><br>
+        <strong>部門:</strong> <span id="current-dept"></span><br>
+        <strong>休暇種別:</strong> <span id="leave-types"></span>
+      </div>
+      <div class="hint">
+        <strong>休日カレンダー:</strong>
+        <div id="holidays"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="employee-section" style="display:none;">
+    <h2>休暇申請</h2>
+    <form id="leave-form">
+      <label>開始日<input type="date" name="start_date" required></label>
+      <label>終了日<input type="date" name="end_date" required></label>
+      <label>休暇種別
+        <select name="leave_type" id="leave-type-select" required></select>
+      </label>
+      <label class="full">理由<textarea name="reason" required></textarea></label>
+      <div class="actions">
+        <button type="submit">申請する</button>
+        <div id="leave-error" class="error"></div>
+      </div>
+    </form>
+    <h3>自分の休暇申請一覧</h3>
+    <div id="leave-list"></div>
+  </section>
+
+  <section id="correction-section" style="display:none;">
+    <h2>勤怠修正申請</h2>
+    <form id="correction-form">
+      <label>対象日<input type="date" name="date" required></label>
+      <label>出勤<input type="time" name="clock_in" required></label>
+      <label>退勤<input type="time" name="clock_out" required></label>
+      <label>休憩（分）<input type="number" name="break_minutes" min="0" value="60"></label>
+      <label>残業（時間）<input type="number" name="overtime_hours" min="0" step="0.25" value="0"></label>
+      <label class="full">理由<textarea name="reason" required></textarea></label>
+      <div class="actions">
+        <button type="submit">修正を申請</button>
+        <div id="correction-error" class="error"></div>
+      </div>
+    </form>
+    <h3>自分の修正履歴</h3>
+    <div id="correction-list"></div>
+  </section>
+
+  <section id="approval-section" style="display:none;">
+    <h2>承認キュー <span class="pill">上長/管理者</span></h2>
+    <p class="muted">チーム内の休暇申請・勤怠修正を承認/却下できます。</p>
+    <div class="grid">
+      <div>
+        <h3>休暇申請</h3>
+        <div id="team-leave-list"></div>
+      </div>
+      <div>
+        <h3>勤怠修正</h3>
+        <div id="team-correction-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="report-section" style="display:none;">
+    <h2>集計レポート <span class="pill">上長/管理者</span></h2>
+    <form id="report-form">
+      <label>期間開始<input type="date" name="start"></label>
+      <label>期間終了<input type="date" name="end"></label>
+      <label>部門
+        <select name="department" id="dept-filter"><option value="">全て</option></select>
+      </label>
+      <label>社員
+        <select name="employee" id="emp-filter"><option value="">全て</option></select>
+      </label>
+      <div class="actions">
+        <button type="submit">レポート作成</button>
+        <button type="button" id="export-btn" class="secondary">CSVエクスポート</button>
+        <div id="report-error" class="error"></div>
+      </div>
+    </form>
+    <div id="report-result"></div>
+  </section>
+
+  <section id="settings-section" style="display:none;">
+    <h2>管理設定 <span class="pill">管理者</span></h2>
+    <p class="muted">休暇種別・休日・承認経路を変更できます。変更時は必ず main.py と ui.html を同じリポジトリで更新してください。</p>
+    <form id="settings-form">
+      <label class="full">休暇種別（カンマ区切り）
+        <textarea name="leave_types" id="settings-leave-types"></textarea>
+      </label>
+      <label class="full">休日（YYYY-MM-DD を改行区切り）
+        <textarea name="holidays" id="settings-holidays"></textarea>
+      </label>
+      <label class="full">承認経路（JSON配列）
+        <textarea name="approval_routes" id="settings-routes" placeholder='[{"department":"Sales","manager_id":"m001"}]'></textarea>
+      </label>
+      <div class="actions">
+        <button type="submit">保存</button>
+        <div id="settings-message" class="success"></div>
+      </div>
+    </form>
+  </section>
+</div>
+
+<template id="table-template">
+  <table>
+    <thead></thead>
+    <tbody></tbody>
+  </table>
+</template>
+
+<script>
+(() => {
+  const state = {
+    currentUser: null,
+    users: [],
+    leaveTypes: [],
+    calendar: { holidays: [] },
+    approvalRoutes: [],
+  };
+
+  const elements = {
+    userSelect: document.getElementById("user-select"),
+    loginForm: document.getElementById("login-form"),
+    loginMessage: document.getElementById("login-message"),
+    summary: document.getElementById("summary-section"),
+    currentUser: document.getElementById("current-user"),
+    currentRole: document.getElementById("current-role"),
+    currentDept: document.getElementById("current-dept"),
+    leaveTypes: document.getElementById("leave-types"),
+    holidays: document.getElementById("holidays"),
+    leaveTypeSelect: document.getElementById("leave-type-select"),
+    leaveForm: document.getElementById("leave-form"),
+    leaveError: document.getElementById("leave-error"),
+    leaveList: document.getElementById("leave-list"),
+    correctionForm: document.getElementById("correction-form"),
+    correctionError: document.getElementById("correction-error"),
+    correctionList: document.getElementById("correction-list"),
+    employeeSection: document.getElementById("employee-section"),
+    correctionSection: document.getElementById("correction-section"),
+    approvalSection: document.getElementById("approval-section"),
+    teamLeaveList: document.getElementById("team-leave-list"),
+    teamCorrectionList: document.getElementById("team-correction-list"),
+    reportSection: document.getElementById("report-section"),
+    reportForm: document.getElementById("report-form"),
+    reportResult: document.getElementById("report-result"),
+    reportError: document.getElementById("report-error"),
+    deptFilter: document.getElementById("dept-filter"),
+    empFilter: document.getElementById("emp-filter"),
+    exportBtn: document.getElementById("export-btn"),
+    settingsSection: document.getElementById("settings-section"),
+    settingsForm: document.getElementById("settings-form"),
+    settingsLeaveTypes: document.getElementById("settings-leave-types"),
+    settingsHolidays: document.getElementById("settings-holidays"),
+    settingsRoutes: document.getElementById("settings-routes"),
+    settingsMsg: document.getElementById("settings-message"),
+  };
+
+  // Generic fetch wrapper that attaches the current user headers.
+  async function api(path, options = {}) {
+    const headers = { "Content-Type": "application/json" };
+    if (state.currentUser) {
+      headers["X-User-Id"] = state.currentUser.id;
+      headers["X-User-Role"] = state.currentUser.role;
+    }
+    const resp = await fetch(path, { ...options, headers: { ...headers, ...(options.headers || {}) } });
+    if (resp.headers.get("content-type")?.includes("application/json")) {
+      return resp.json();
+    }
+    return resp.text();
+  }
+
+  function setVisible(el, show) {
+    el.style.display = show ? "" : "none";
+  }
+
+  function renderStatus(value) {
+    const span = document.createElement("span");
+    span.className = `status ${value}`;
+    span.textContent = value;
+    return span;
+  }
+
+  function renderTable(columns, rows) {
+    const tpl = document.getElementById("table-template");
+    const clone = tpl.content.cloneNode(true);
+    const thead = clone.querySelector("thead");
+    const tbody = clone.querySelector("tbody");
+    const headRow = document.createElement("tr");
+    columns.forEach(col => {
+      const th = document.createElement("th");
+      th.textContent = col.label;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    if (!rows.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = columns.length;
+      td.textContent = "データがありません";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    } else {
+      rows.forEach(row => {
+        const tr = document.createElement("tr");
+        columns.forEach(col => {
+          const td = document.createElement("td");
+          if (col.render) {
+            const node = col.render(row[col.key], row);
+            if (node instanceof Node) td.appendChild(node); else td.textContent = node;
+          } else {
+            td.textContent = row[col.key] ?? "";
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+    return clone;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = String(str ?? "");
+    return div.innerHTML;
+  }
+
+  // ---- Initialization --------------------------------------------------
+  async function bootstrap() {
+    const meta = await api("/api/meta");
+    state.users = meta.users || [];
+    state.leaveTypes = meta.leave_types || [];
+    state.calendar = meta.work_calendar || { holidays: [] };
+    state.approvalRoutes = meta.approval_routes || [];
+    elements.userSelect.innerHTML = state.users
+      .map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)} (${u.role})</option>`)
+      .join("");
+    elements.leaveTypeSelect.innerHTML = state.leaveTypes.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+    elements.settingsLeaveTypes.value = state.leaveTypes.join(", ");
+    elements.settingsHolidays.value = state.calendar.holidays.join("\n");
+    elements.settingsRoutes.value = JSON.stringify(state.approvalRoutes, null, 2);
+    populateFilters();
+    elements.holidays.innerHTML = (state.calendar.holidays || []).map(h => `<span class="pill">${escapeHtml(h)}</span>`).join(" ");
+    elements.leaveTypes.textContent = state.leaveTypes.join(", ");
+  }
+
+  function populateFilters() {
+    const depts = Array.from(new Set(state.users.map(u => u.department).filter(Boolean)));
+    elements.deptFilter.innerHTML = `<option value="">全て</option>` + depts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join("");
+    elements.empFilter.innerHTML = `<option value="">全て</option>` + state.users.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join("");
+  }
+
+  // ---- Login -----------------------------------------------------------
+  elements.loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const userId = elements.userSelect.value;
+    const res = await api("/api/login", { method: "POST", body: JSON.stringify({ user_id: userId }) });
+    if (!res.ok) {
+      elements.loginMessage.textContent = res.message || "ログインに失敗しました";
+      return;
+    }
+    state.currentUser = res.user;
+    elements.loginMessage.textContent = `${res.user.name} としてログインしました`;
+    elements.currentUser.textContent = res.user.name;
+    elements.currentRole.textContent = res.user.role;
+    elements.currentDept.textContent = res.user.department || "-";
+    setVisible(elements.summary, true);
+    const isEmployee = ["employee", "manager", "admin"].includes(res.user.role);
+    setVisible(elements.employeeSection, isEmployee);
+    setVisible(elements.correctionSection, isEmployee);
+    setVisible(elements.approvalSection, ["manager", "admin"].includes(res.user.role));
+    setVisible(elements.reportSection, ["manager", "admin"].includes(res.user.role));
+    setVisible(elements.settingsSection, res.user.role === "admin");
+    refreshAll();
+  });
+
+  // ---- Leave requests --------------------------------------------------
+  elements.leaveForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    elements.leaveError.textContent = "";
+    const fd = new FormData(elements.leaveForm);
+    const start = fd.get("start_date");
+    const end = fd.get("end_date");
+    if (start && end && end < start) {
+      elements.leaveError.textContent = "終了日は開始日以降にしてください";
+      return;
+    }
+    const payload = Object.fromEntries(fd.entries());
+    const res = await api("/api/leave_requests", { method: "POST", body: JSON.stringify(payload) });
+    if (!res.ok) {
+      elements.leaveError.textContent = res.message || "登録に失敗しました";
+      return;
+    }
+    elements.leaveForm.reset();
+    refreshPersonal();
+  });
+
+  async function loadLeave(scope = "mine") {
+    const res = await api(`/api/leave_requests?scope=${scope}`);
+    return res.items || [];
+  }
+
+  function showLeave(list, container) {
+    const columns = [
+      { key: "employee_name", label: "社員" },
+      { key: "department", label: "部門" },
+      { key: "leave_type", label: "種別" },
+      { key: "start_date", label: "開始" },
+      { key: "end_date", label: "終了" },
+      { key: "days", label: "日数" },
+      { key: "reason", label: "理由" },
+      { key: "status", label: "ステータス", render: (v) => renderStatus(v) },
+      { key: "approver_comment", label: "コメント" },
+      { key: "approved_by", label: "承認者" },
+      {
+        key: "id",
+        label: "操作",
+        render: (_, row) => {
+          if (!["manager", "admin"].includes(state.currentUser?.role)) return "";
+          if (row.status !== "pending") return "";
+          const wrapper = document.createElement("div");
+          wrapper.className = "actions";
+          ["approved", "rejected"].forEach(action => {
+            const btn = document.createElement("button");
+            btn.textContent = action === "approved" ? "承認" : "却下";
+            if (action === "rejected") btn.classList.add("danger");
+            btn.addEventListener("click", () => handleApproval("leave", row.id, action));
+            wrapper.appendChild(btn);
+          });
+          return wrapper;
+        },
+      },
+    ];
+    container.innerHTML = "";
+    container.appendChild(renderTable(columns, list));
+  }
+
+  // ---- Attendance corrections -----------------------------------------
+  elements.correctionForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    elements.correctionError.textContent = "";
+    const fd = new FormData(elements.correctionForm);
+    const payload = Object.fromEntries(fd.entries());
+    const res = await api("/api/attendance_corrections", { method: "POST", body: JSON.stringify(payload) });
+    if (!res.ok) {
+      elements.correctionError.textContent = res.message || "登録に失敗しました";
+      return;
+    }
+    elements.correctionForm.reset();
+    refreshPersonal();
+  });
+
+  async function loadCorrections(scope = "mine") {
+    const res = await api(`/api/attendance_corrections?scope=${scope}`);
+    return res.items || [];
+  }
+
+  function showCorrections(list, container) {
+    const columns = [
+      { key: "employee_name", label: "社員" },
+      { key: "department", label: "部門" },
+      { key: "date", label: "日付" },
+      { key: "clock_in", label: "出勤" },
+      { key: "clock_out", label: "退勤" },
+      { key: "break_minutes", label: "休憩(分)" },
+      { key: "overtime_hours", label: "残業(時間)" },
+      { key: "reason", label: "理由" },
+      { key: "status", label: "ステータス", render: (v) => renderStatus(v) },
+      { key: "approver_comment", label: "コメント" },
+      {
+        key: "id",
+        label: "操作",
+        render: (_, row) => {
+          if (!["manager", "admin"].includes(state.currentUser?.role)) return "";
+          if (row.status !== "pending") return "";
+          const wrapper = document.createElement("div");
+          wrapper.className = "actions";
+          ["approved", "rejected"].forEach(action => {
+            const btn = document.createElement("button");
+            btn.textContent = action === "approved" ? "承認" : "却下";
+            if (action === "rejected") btn.classList.add("danger");
+            btn.addEventListener("click", () => handleApproval("correction", row.id, action));
+            wrapper.appendChild(btn);
+          });
+          return wrapper;
+        },
+      },
+    ];
+    container.innerHTML = "";
+    container.appendChild(renderTable(columns, list));
+  }
+
+  async function handleApproval(category, id, action) {
+    const comment = prompt("コメントを入力してください（任意）") || "";
+    const res = await api("/api/approvals", {
+      method: "POST",
+      body: JSON.stringify({ category, id, action, comment }),
+    });
+    if (!res.ok) {
+      alert(res.message || "処理に失敗しました");
+      return;
+    }
+    refreshAll();
+  }
+
+  // ---- Reports ---------------------------------------------------------
+  elements.reportForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    elements.reportError.textContent = "";
+    const fd = new FormData(elements.reportForm);
+    const params = new URLSearchParams(fd);
+    const res = await api(`/api/reports?${params.toString()}`);
+    if (!res.ok) {
+      elements.reportError.textContent = res.message || "取得に失敗しました";
+      return;
+    }
+    renderReport(res.report);
+  });
+
+  function renderReport(report) {
+    if (!report) return;
+    const rows = report.leave_totals || [];
+    const columns = [
+      { key: "employee_name", label: "社員" },
+      { key: "employee_id", label: "社員ID" },
+      { key: "department", label: "部門" },
+      { key: "leave_days_taken", label: "取得日数" },
+      { key: "leave_days_remaining", label: "残日数" },
+    ];
+    elements.reportResult.innerHTML = `<p class="muted">承認済みの件数のみ集計。勤怠修正件数: ${report.correction_count}</p>`;
+    elements.reportResult.appendChild(renderTable(columns, rows));
+  }
+
+  elements.exportBtn.addEventListener("click", () => {
+    const fd = new FormData(elements.reportForm);
+    const params = new URLSearchParams(fd);
+    const url = `/api/reports/export?${params.toString()}`;
+    fetch(url, { headers: { "X-User-Id": state.currentUser?.id || "", "X-User-Role": state.currentUser?.role || "" } })
+      .then(resp => resp.blob())
+      .then(blob => {
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = "reports.csv";
+        a.click();
+        URL.revokeObjectURL(href);
+      });
+  });
+
+  // ---- Settings --------------------------------------------------------
+  elements.settingsForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    elements.settingsMsg.textContent = "";
+    try {
+      const leaveTypes = elements.settingsLeaveTypes.value.split(",").map(s => s.trim()).filter(Boolean);
+      const holidays = elements.settingsHolidays.value.split("\n").map(s => s.trim()).filter(Boolean);
+      const routes = JSON.parse(elements.settingsRoutes.value || "[]");
+      const res = await api("/api/settings", {
+        method: "POST",
+        body: JSON.stringify({ leave_types: leaveTypes, holidays, approval_routes: routes }),
+      });
+      if (!res.ok) {
+        elements.settingsMsg.textContent = res.message || "保存に失敗しました";
+        return;
+      }
+      elements.settingsMsg.textContent = "保存しました";
+      await bootstrap();
+      refreshAll();
+    } catch (err) {
+      elements.settingsMsg.textContent = "JSONの形式を確認してください";
+    }
+  });
+
+  // ---- Refresh helpers -------------------------------------------------
+  async function refreshPersonal() {
+    const leaves = await loadLeave("mine");
+    const corrections = await loadCorrections("mine");
+    showLeave(leaves, elements.leaveList);
+    showCorrections(corrections, elements.correctionList);
+  }
+
+  async function refreshTeam() {
+    if (!["manager", "admin"].includes(state.currentUser?.role)) return;
+    const leaves = await loadLeave("team");
+    const corrections = await loadCorrections("team");
+    showLeave(leaves, elements.teamLeaveList);
+    showCorrections(corrections, elements.teamCorrectionList);
+  }
+
+  function refreshAll() {
+    refreshPersonal();
+    refreshTeam();
+  }
+
+  bootstrap();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>家計簿ミニ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            color-scheme: light;
+            --income: #2e8b57;
+            --expense: #e74c3c;
+            --neutral: #2f3640;
+            --bg: #f6f7fb;
+            --card: #ffffff;
+            --border: #e1e4eb;
+            --accent: #3b82f6;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+            background: var(--bg);
+            color: var(--neutral);
+            min-height: 100vh;
+            padding: 24px 12px 48px;
+        }
+        .ledger-app {
+            max-width: 840px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            text-align: center;
+        }
+        h2 {
+            margin: 0 0 12px;
+            font-size: 1.2rem;
+        }
+        section {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+            border: 1px solid var(--border);
+        }
+        form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-weight: 600;
+        }
+        input[type="date"],
+        input[type="number"],
+        input[type="text"],
+        select,
+        textarea {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 1rem;
+            width: 100%;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 42px;
+            max-height: 100px;
+        }
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: 2px solid var(--accent);
+            border-color: var(--accent);
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 12px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s ease, transform 0.1s ease;
+        }
+        button:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: var(--neutral);
+        }
+        .btn-danger {
+            background: var(--expense);
+            color: #fff;
+        }
+        .error-text {
+            margin-top: 10px;
+            color: var(--expense);
+            font-weight: 600;
+            min-height: 1.2em;
+        }
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            align-items: end;
+        }
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .total-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            background: #f9fafc;
+        }
+        .total-card strong {
+            display: block;
+            font-size: 1.3rem;
+            margin-top: 4px;
+        }
+        .total-income strong {
+            color: var(--income);
+        }
+        .total-expense strong {
+            color: var(--expense);
+        }
+        .total-balance strong {
+            color: var(--neutral);
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+            min-width: 620px;
+        }
+        th,
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+        th {
+            background: #f2f4f8;
+            font-weight: 700;
+        }
+        .type-income {
+            color: var(--income);
+            font-weight: 700;
+        }
+        .type-expense {
+            color: var(--expense);
+            font-weight: 700;
+        }
+        .amount-cell {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+        .btn-delete {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--expense);
+            padding: 6px 14px;
+            border-radius: 999px;
+        }
+        .btn-delete:hover {
+            border-color: var(--expense);
+        }
+        .placeholder {
+            padding: 16px;
+            text-align: center;
+            color: #7b8794;
+        }
+        .category-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 1fr);
+            gap: 20px;
+        }
+        .chart-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        canvas {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+        }
+        .legend {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+        }
+        @media (max-width: 640px) {
+            body {
+                padding: 12px 10px 32px;
+            }
+            form {
+                grid-template-columns: 1fr;
+            }
+            table {
+                min-width: unset;
+                font-size: 0.85rem;
+            }
+            .category-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ledger-app">
+        <header>
+            <h1>家計簿ミニ</h1>
+        </header>
+
+        <section aria-labelledby="form-title">
+            <h2 id="form-title">収支登録</h2>
+            <form id="entryForm" novalidate>
+                <label>
+                    日付
+                    <input type="date" id="entryDate" required>
+                </label>
+                <label>
+                    種別
+                    <select id="entryType" required>
+                        <option value="expense" selected>支出</option>
+                        <option value="income">収入</option>
+                    </select>
+                </label>
+                <label>
+                    カテゴリ
+                    <select id="entryCategory" required></select>
+                </label>
+                <label>
+                    金額
+                    <input type="number" id="entryAmount" min="0.01" step="0.01" required>
+                </label>
+                <label>
+                    メモ
+                    <textarea id="entryNote" maxlength="100" placeholder="最大100文字"></textarea>
+                </label>
+                <div class="actions">
+                    <button type="submit" class="btn-primary" aria-label="収支を登録する">登録</button>
+                </div>
+            </form>
+            <div id="formErrors" class="error-text" role="alert" aria-live="assertive"></div>
+        </section>
+
+        <section aria-labelledby="filter-title">
+            <h2 id="filter-title">期間フィルタ</h2>
+            <div class="filter-grid">
+                <label>
+                    From
+                    <input type="date" id="filterFrom">
+                </label>
+                <label>
+                    To
+                    <input type="date" id="filterTo">
+                </label>
+            </div>
+            <div id="filterError" class="error-text" role="alert" aria-live="polite"></div>
+        </section>
+
+        <section aria-labelledby="utility-title">
+            <h2 id="utility-title">ユーティリティ</h2>
+            <div class="actions">
+                <button type="button" class="btn-secondary" id="demoBtn" aria-label="デモデータを追加する">デモデータ投入</button>
+                <button type="button" class="btn-danger" id="clearBtn" aria-label="全てのデータを削除する">全データ削除</button>
+            </div>
+        </section>
+
+        <section aria-labelledby="totals-title">
+            <h2 id="totals-title">期間内合計</h2>
+            <div class="totals-grid">
+                <div class="total-card total-income">
+                    <span>収入合計</span>
+                    <strong id="incomeTotal">0.00</strong>
+                </div>
+                <div class="total-card total-expense">
+                    <span>支出合計</span>
+                    <strong id="expenseTotal">0.00</strong>
+                </div>
+                <div class="total-card total-balance">
+                    <span>差引</span>
+                    <strong id="balanceTotal">0.00</strong>
+                </div>
+            </div>
+        </section>
+
+        <section aria-labelledby="records-title">
+            <h2 id="records-title">期間内レコード</h2>
+            <div id="entriesTable" class="table-wrapper"></div>
+        </section>
+
+        <section aria-labelledby="category-title">
+            <h2 id="category-title">カテゴリ別集計（支出）</h2>
+            <div class="category-grid">
+                <div id="categoryTable" class="table-wrapper"></div>
+                <div class="chart-panel">
+                    <canvas id="catChart" width="320" height="320" aria-label="カテゴリ別円グラフ" role="img"></canvas>
+                    <div id="chartEmpty" class="placeholder">データがありません</div>
+                    <div id="chartLegend" class="legend"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            // 定数定義
+            const STORAGE_KEY = 'ledger_v1';
+            const CATEGORY_LIST = ['食費', '交通', '住居', '光熱', '通信', '医療', '教養', '娯楽', '日用品', '貯蓄', '収入', 'その他'];
+            const TYPE_LABELS = { income: '収入', expense: '支出' };
+
+            // DOM参照
+            const form = document.getElementById('entryForm');
+            const dateInput = document.getElementById('entryDate');
+            const typeInput = document.getElementById('entryType');
+            const categorySelect = document.getElementById('entryCategory');
+            const amountInput = document.getElementById('entryAmount');
+            const noteInput = document.getElementById('entryNote');
+            const formErrors = document.getElementById('formErrors');
+            const filterFrom = document.getElementById('filterFrom');
+            const filterTo = document.getElementById('filterTo');
+            const filterError = document.getElementById('filterError');
+            const entriesTable = document.getElementById('entriesTable');
+            const incomeTotalEl = document.getElementById('incomeTotal');
+            const expenseTotalEl = document.getElementById('expenseTotal');
+            const balanceTotalEl = document.getElementById('balanceTotal');
+            const categoryTable = document.getElementById('categoryTable');
+            const catCanvas = document.getElementById('catChart');
+            const chartEmpty = document.getElementById('chartEmpty');
+            const chartLegend = document.getElementById('chartLegend');
+            const demoBtn = document.getElementById('demoBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const ctx = catCanvas.getContext('2d');
+
+            // 状態管理
+            let entries = loadEntries();
+            const monthRange = getCurrentMonthRangeStrings();
+            const filterState = {
+                from: monthRange.from,
+                to: monthRange.to
+            };
+
+            // 初期化
+            initCategoryOptions();
+            setInitialFilters();
+            render();
+            dateInput.focus();
+
+            // イベント設定
+            form.addEventListener('submit', handleSubmit);
+            filterFrom.addEventListener('input', handleFilterChange);
+            filterTo.addEventListener('input', handleFilterChange);
+            demoBtn.addEventListener('click', handleDemoSeed);
+            clearBtn.addEventListener('click', handleClearAll);
+
+            // --- 関数群 ---
+
+            function initCategoryOptions() {
+                CATEGORY_LIST.forEach((cat) => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    categorySelect.appendChild(option);
+                });
+            }
+
+            function setInitialFilters() {
+                filterFrom.value = monthRange.from;
+                filterTo.value = monthRange.to;
+            }
+
+            function loadEntries() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) {
+                        return [];
+                    }
+                    const parsed = JSON.parse(raw);
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (error) {
+                    console.error('データ読み込みに失敗しました', error);
+                    return [];
+                }
+            }
+
+            function saveEntries() {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+            }
+
+            function handleSubmit(event) {
+                event.preventDefault();
+                const validation = validateForm();
+                if (!validation.valid) {
+                    formErrors.innerHTML = `<ul>${validation.errors.map((msg) => `<li>${msg}</li>`).join('')}</ul>`;
+                    return;
+                }
+                formErrors.textContent = '';
+
+                entries.unshift({
+                    id: generateId(),
+                    date: validation.values.date,
+                    type: validation.values.type,
+                    category: validation.values.category,
+                    amount: validation.values.amount,
+                    note: validation.values.note
+                });
+                saveEntries();
+                form.reset();
+                typeInput.value = 'expense';
+                categorySelect.value = CATEGORY_LIST[0];
+                formErrors.textContent = '';
+                dateInput.focus();
+                render();
+            }
+
+            function validateForm() {
+                const errors = [];
+                const touchedFields = new Set();
+
+                const date = dateInput.value.trim();
+                if (!isValidDate(date)) {
+                    pushError('date', '日付を正しく入力してください');
+                }
+
+                const type = typeInput.value;
+                if (!['income', 'expense'].includes(type)) {
+                    pushError('type', '種別を選択してください');
+                }
+
+                const category = categorySelect.value;
+                if (!CATEGORY_LIST.includes(category)) {
+                    pushError('category', 'カテゴリを選択してください');
+                }
+
+                const amountValue = Number(amountInput.value);
+                if (!Number.isFinite(amountValue) || amountValue <= 0) {
+                    pushError('amount', '金額は0より大きい数値で入力してください');
+                }
+
+                const noteRaw = noteInput.value.replace(/[\u0000-\u001F\u007F]/g, '').trim();
+                if (noteRaw.length > 100) {
+                    pushError('note', 'メモは100文字以内で入力してください');
+                }
+
+                if (errors.length) {
+                    return { valid: false, errors };
+                }
+
+                return {
+                    valid: true,
+                    values: {
+                        date,
+                        type,
+                        category,
+                        amount: Number(amountValue.toFixed(2)),
+                        note: noteRaw
+                    }
+                };
+
+                function pushError(field, message) {
+                    if (!touchedFields.has(field)) {
+                        errors.push(message);
+                        touchedFields.add(field);
+                    }
+                }
+            }
+
+            function handleFilterChange() {
+                filterState.from = filterFrom.value.trim() || '';
+                filterState.to = filterTo.value.trim() || '';
+                render();
+            }
+
+            function getCurrentMonthRangeStrings() {
+                const today = new Date();
+                const first = new Date(today.getFullYear(), today.getMonth(), 1);
+                const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                return {
+                    from: formatDate(first),
+                    to: formatDate(last)
+                };
+            }
+
+            function formatDate(dateObj) {
+                const year = dateObj.getFullYear();
+                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const day = String(dateObj.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            function isValidDate(value) {
+                return Boolean(value) && !Number.isNaN(Date.parse(value));
+            }
+
+            function computeActiveRange() {
+                const from = filterState.from || monthRange.from;
+                const to = filterState.to || monthRange.to;
+
+                if (!isValidDate(from) || !isValidDate(to)) {
+                    return { valid: false, message: '期間を正しく入力してください' };
+                }
+
+                if (new Date(from) > new Date(to)) {
+                    return { valid: false, message: '開始日は終了日以前に設定してください' };
+                }
+
+                return { valid: true, from, to };
+            }
+
+            function getFilteredEntries(range) {
+                const fromTime = new Date(range.from).setHours(0, 0, 0, 0);
+                const toTime = new Date(range.to).setHours(23, 59, 59, 999);
+                return entries
+                    .filter((entry) => {
+                        const time = new Date(entry.date).getTime();
+                        return time >= fromTime && time <= toTime;
+                    })
+                    .sort((a, b) => new Date(b.date) - new Date(a.date));
+            }
+
+            function render() {
+                const rangeResult = computeActiveRange();
+                filterError.textContent = rangeResult.message || '';
+                const filtered = rangeResult.valid ? getFilteredEntries(rangeResult) : [];
+                renderEntries(filtered);
+                renderTotals(filtered);
+                const expenseSummary = buildExpenseSummary(filtered);
+                renderCategoryTable(expenseSummary);
+                renderChart(expenseSummary);
+            }
+
+            function renderEntries(list) {
+                if (list.length === 0) {
+                    entriesTable.innerHTML = '<div class="placeholder">該当するデータがありません</div>';
+                    return;
+                }
+
+                const rows = list
+                    .map((entry) => {
+                        const typeLabel = TYPE_LABELS[entry.type] || entry.type;
+                        const typeClass = entry.type === 'income' ? 'type-income' : 'type-expense';
+                        const amount = formatAmount(entry.amount);
+                        const note = entry.note ? escapeHtml(entry.note) : '-';
+                        return `
+                            <tr>
+                                <td>${escapeHtml(entry.date)}</td>
+                                <td class="${typeClass}">${typeLabel}</td>
+                                <td>${escapeHtml(entry.category)}</td>
+                                <td class="amount-cell">${amount}</td>
+                                <td>${note}</td>
+                                <td>
+                                    <button class="btn-delete" data-id="${entry.id}" aria-label="このレコードを削除する">削除</button>
+                                </td>
+                            </tr>
+                        `;
+                    })
+                    .join('');
+
+                entriesTable.innerHTML = `
+                    <table aria-label="期間内レコード一覧">
+                        <thead>
+                            <tr>
+                                <th>日付</th>
+                                <th>種別</th>
+                                <th>カテゴリ</th>
+                                <th>金額</th>
+                                <th>メモ</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                `;
+
+                entriesTable.querySelectorAll('.btn-delete').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        handleDelete(btn.dataset.id);
+                    });
+                });
+            }
+
+            function renderTotals(list) {
+                const income = list.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
+                const expense = list.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
+                const balance = income - expense;
+                incomeTotalEl.textContent = formatAmount(income);
+                expenseTotalEl.textContent = formatAmount(expense);
+                balanceTotalEl.textContent = formatAmount(balance);
+            }
+
+            function buildExpenseSummary(list) {
+                const summary = list
+                    .filter((item) => item.type === 'expense')
+                    .reduce((acc, item) => {
+                        acc[item.category] = (acc[item.category] || 0) + item.amount;
+                        return acc;
+                    }, {});
+                return Object.entries(summary)
+                    .map(([category, amount]) => ({ category, amount }))
+                    .sort((a, b) => b.amount - a.amount);
+            }
+
+            function renderCategoryTable(summary) {
+                if (!summary.length) {
+                    categoryTable.innerHTML = '<div class="placeholder">支出データがありません</div>';
+                    return;
+                }
+                const rows = summary
+                    .map(
+                        (item) => `
+                        <tr>
+                            <td>${escapeHtml(item.category)}</td>
+                            <td class="amount-cell">${formatAmount(item.amount)}</td>
+                        </tr>
+                    `
+                    )
+                    .join('');
+                categoryTable.innerHTML = `
+                    <table aria-label="カテゴリ別集計">
+                        <thead>
+                            <tr>
+                                <th>カテゴリ</th>
+                                <th>支出合計</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                `;
+            }
+
+            function renderChart(summary) {
+                ctx.clearRect(0, 0, catCanvas.width, catCanvas.height);
+                if (!summary.length) {
+                    chartEmpty.style.display = 'block';
+                    chartLegend.innerHTML = '';
+                    return;
+                }
+                chartEmpty.style.display = 'none';
+                const total = summary.reduce((sum, item) => sum + item.amount, 0);
+                let startAngle = -Math.PI / 2;
+                summary.forEach((item) => {
+                    const sliceAngle = (item.amount / total) * Math.PI * 2;
+                    const color = categoryColor(item.category);
+                    ctx.beginPath();
+                    ctx.moveTo(catCanvas.width / 2, catCanvas.height / 2);
+                    ctx.arc(catCanvas.width / 2, catCanvas.height / 2, Math.min(catCanvas.width, catCanvas.height) / 2 - 10, startAngle, startAngle + sliceAngle);
+                    ctx.closePath();
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    startAngle += sliceAngle;
+                });
+                ctx.fillStyle = '#111';
+                ctx.font = '600 20px/1 "Segoe UI", "Noto Sans JP", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(formatAmount(total), catCanvas.width / 2, catCanvas.height / 2);
+
+                chartLegend.innerHTML = summary
+                    .map((item) => {
+                        const color = categoryColor(item.category);
+                        return `
+                            <div class="legend-item">
+                                <span class="legend-color" style="background:${color}"></span>
+                                <span>${escapeHtml(item.category)}：${formatAmount(item.amount)}</span>
+                            </div>
+                        `;
+                    })
+                    .join('');
+            }
+
+            function handleDelete(id) {
+                const target = entries.find((item) => item.id === id);
+                if (!target) {
+                    return;
+                }
+                if (!window.confirm('このレコードを削除しますか？')) {
+                    return;
+                }
+                entries = entries.filter((item) => item.id !== id);
+                saveEntries();
+                render();
+            }
+
+            function handleDemoSeed() {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+                const demoEntries = [
+                    { date: new Date(currentYear, currentMonth, 3), type: 'income', category: '収入', amount: 320000, note: '給与' },
+                    { date: new Date(currentYear, currentMonth, 4), type: 'expense', category: '住居', amount: 85000, note: '家賃' },
+                    { date: new Date(currentYear, currentMonth, 7), type: 'expense', category: '食費', amount: 7800, note: 'スーパー' },
+                    { date: new Date(currentYear, currentMonth, 9), type: 'expense', category: '光熱', amount: 11200, note: '電気' },
+                    { date: new Date(lastMonthDate.getFullYear(), lastMonthDate.getMonth(), 12), type: 'expense', category: '交通', amount: 5200, note: '定期券' },
+                    { date: new Date(lastMonthDate.getFullYear(), lastMonthDate.getMonth(), 18), type: 'expense', category: '娯楽', amount: 6400, note: '映画' },
+                    { date: new Date(lastMonthDate.getFullYear(), lastMonthDate.getMonth(), 20), type: 'income', category: '収入', amount: 15000, note: 'フリマ' },
+                    { date: new Date(currentYear, currentMonth, 11), type: 'expense', category: '日用品', amount: 3600, note: 'ドラッグストア' }
+                ];
+                demoEntries
+                    .sort((a, b) => b.date - a.date)
+                    .forEach((item) => {
+                        entries.unshift({
+                            id: generateId(),
+                            date: formatDate(item.date),
+                            type: item.type,
+                            category: item.category,
+                            amount: Number(item.amount.toFixed(2)),
+                            note: item.note
+                        });
+                    });
+                saveEntries();
+                render();
+            }
+
+            function handleClearAll() {
+                if (!entries.length) {
+                    return;
+                }
+                if (!window.confirm('全てのデータを削除しますか？')) {
+                    return;
+                }
+                entries = [];
+                saveEntries();
+                render();
+            }
+
+            function generateId() {
+                return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            }
+
+            function formatAmount(value) {
+                return Number(value || 0).toLocaleString('ja-JP', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function categoryColor(category) {
+                let hash = 0;
+                for (let i = 0; i < category.length; i += 1) {
+                    hash = category.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                const hue = Math.abs(hash) % 360;
+                return `hsl(${hue}, 65%, 60%)`;
+            }
+
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.textContent = String(str);
+                return div.innerHTML;
+            }
+        })();
+    </script>
+</body>
+</html>
